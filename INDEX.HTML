@@ -3,18 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Finanzas Personales</title>
+    <title>Finanzas Sheets Pro + Stats</title>
     
-    <!-- Configuración PWA -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#111827">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Finanzas">
     
-    <!-- Iconos para iOS (Opcional: Reemplazar href con tus propias imágenes si las tienes) -->
-    <link rel="apple-touch-icon" href="icon-192.png">
-
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -23,455 +17,479 @@
             color: #f3f4f6;
             -webkit-tap-highlight-color: transparent;
         }
-        .text-custom-income { color: #22d3ee; } /* Cyan más brillante */
-        .text-custom-expense { color: #f472b6; } /* Rosa más suave */
+        .text-custom-income { color: #22d3ee; } 
+        .text-custom-expense { color: #f472b6; }
         .card-bg { background-color: #1f2937; }
         
-        /* Estilos de inputs mejorados para móvil */
         .input-style {
             background-color: #374151;
             border: 1px solid #4b5563;
             color: #f3f4f6;
-            font-size: 16px; /* Evita zoom en iOS */
+            font-size: 16px;
         }
         .input-style:focus {
             border-color: #22d3ee;
             outline: none;
             box-shadow: 0 0 0 2px rgba(34, 211, 238, 0.2);
         }
-        /* Ocultar barra de scroll en tablas pero permitir desplazamiento */
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
+        
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top: 3px solid #fff;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
         }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .tab-active {
+            border-bottom: 3px solid #10b981;
+            color: #10b981;
         }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 </head>
-<body class="bg-gray-900 pb-10">
-    <div id="main-view" class="max-w-md mx-auto min-h-screen flex flex-col p-4 space-y-6">
+<body class="bg-gray-900 pb-24">
+    
+    <!-- Header Fijo -->
+    <header class="max-w-md mx-auto p-4 flex justify-between items-center sticky top-0 bg-gray-900 z-40 border-b border-gray-800">
+        <div>
+            <h1 class="text-xl font-bold text-gray-50">Finanzas Pro</h1>
+            <p id="status-text" class="text-[10px] text-emerald-400 flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                Sincronización Activa
+            </p>
+        </div>
+        <div id="loading-indicator" class="hidden"><div class="spinner"></div></div>
+    </header>
+
+    <!-- Contenedor Principal -->
+    <main class="max-w-md mx-auto p-4 space-y-6">
         
-        <!-- Header Compacto -->
-        <header class="flex justify-between items-center py-2">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-50">Mis Finanzas</h1>
-                <p class="text-xs text-gray-400">Control de gastos e ingresos</p>
-            </div>
-            <div id="offline-indicator" class="hidden px-2 py-1 bg-red-900 text-red-200 text-xs rounded-full">
-                Offline
-            </div>
-        </header>
-
-        <!-- Botones de Acción Rápida -->
-        <div class="grid grid-cols-2 gap-3">
-            <button id="show-queries-btn" class="bg-indigo-600 active:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg transition-transform transform active:scale-95 text-sm">
-                🔍 Consultas
-            </button>
-            <button id="open-spreadsheet-btn" class="bg-emerald-600 active:bg-emerald-700 text-white font-medium py-3 px-4 rounded-xl shadow-lg transition-transform transform active:scale-95 text-sm">
-                📊 Ver Hoja
-            </button>
-        </div>
-
-        <!-- Resumen Cards -->
-        <div class="card-bg rounded-2xl shadow-xl p-5 border border-gray-700">
-            <h2 class="text-sm font-medium text-gray-400 mb-4 uppercase tracking-wider text-center" id="resumen-periodo-titulo">Mes Actual</h2>
-            <div class="grid grid-cols-3 gap-2 text-center">
-                <div class="p-2">
-                    <p class="text-xs text-gray-400 mb-1">Ingresos</p>
-                    <p id="total-ingresos" class="text-custom-income font-bold text-lg sm:text-xl">$0</p>
-                </div>
-                <div class="p-2 border-l border-r border-gray-700">
-                    <p class="text-xs text-gray-400 mb-1">Gastos</p>
-                    <p id="total-gastos" class="text-custom-expense font-bold text-lg sm:text-xl">$0</p>
-                </div>
-                <div class="p-2">
-                    <p class="text-xs text-gray-400 mb-1">Balance</p>
-                    <p id="diferencia" class="font-bold text-lg sm:text-xl">$0</p>
-                </div>
-            </div>
-
-            <!-- Filtros de fecha colapsables -->
-            <details class="mt-4">
-                <summary class="text-xs text-center text-gray-500 cursor-pointer hover:text-gray-300">Filtrar por fechas</summary>
-                <div class="mt-3 flex gap-2">
-                    <input type="date" id="fecha-inicio" class="w-1/2 rounded-lg p-2 input-style text-xs">
-                    <input type="date" id="fecha-final" class="w-1/2 rounded-lg p-2 input-style text-xs">
-                </div>
-                <button id="reset-dates-btn" class="mt-2 w-full py-1 text-xs text-blue-400 hover:text-blue-300">Ver mes actual</button>
-            </details>
-        </div>
-
-        <!-- Formulario de Transacción -->
-        <div class="card-bg rounded-2xl shadow-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-100 mb-4 flex items-center">
-                <span class="bg-blue-600 w-1 h-6 mr-2 rounded-full"></span>
-                Nueva Transacción
-            </h2>
-            <form id="transaction-form" class="space-y-4">
-                <div class="grid grid-cols-2 gap-3">
-                    <input type="date" id="fecha" required class="w-full rounded-lg p-3 input-style">
-                    <select id="concepto" required class="w-full rounded-lg p-3 input-style">
-                        <option value="Gasto" selected>🔴 Gasto</option>
-                        <option value="Ingreso">🟢 Ingreso</option>
-                    </select>
-                </div>
-                
-                <input type="number" id="cantidad" placeholder="$0.00" step="0.01" required class="w-full rounded-lg p-3 input-style text-xl font-bold text-center">
-
-                <div class="grid grid-cols-2 gap-3">
-                    <input type="text" id="referencia" placeholder="Ref (Ej. Super)" required class="w-full rounded-lg p-3 input-style">
-                    <select id="tipoMovimiento" required class="w-full rounded-lg p-3 input-style">
-                        <option value="Efectivo">💵 Efectivo</option>
-                        <option value="Tarjeta">💳 Crédito</option>
-                        <option value="Debito">💳 Débito</option>
-                        <option value="Transferencia">🏦 Transf.</option>
-                    </select>
-                </div>
-                
-                <input type="text" id="descripcion" placeholder="Detalle opcional..." class="w-full rounded-lg p-3 input-style">
-
-                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition-colors flex justify-center items-center gap-2">
-                    <span>Guardar</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd" /></svg>
-                </button>
-            </form>
-        </div>
-
-        <!-- Lista de Movimientos -->
-        <div class="space-y-4">
-            <h2 class="text-lg font-semibold text-gray-200 px-2">Últimos Movimientos</h2>
-            <div id="transactions-list" class="space-y-3">
-                <!-- Las tarjetas se generan con JS -->
-            </div>
-        </div>
-
-        <!-- Resumen Mensual -->
-        <div class="card-bg rounded-2xl shadow-xl p-5 border border-gray-700">
-            <h2 class="text-lg font-semibold text-gray-100 mb-4">Histórico Mensual</h2>
-            <div class="overflow-x-auto no-scrollbar">
-                <table class="w-full text-left border-collapse">
-                    <thead>
-                        <tr class="text-xs text-gray-500 border-b border-gray-700">
-                            <th class="pb-2 pl-2">Mes</th>
-                            <th class="pb-2 text-right">Ingresos</th>
-                            <th class="pb-2 pr-2 text-right">Gastos</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resumen-mensual" class="text-sm"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="text-center text-xs text-gray-600 pt-8 pb-4">
-            App de Finanzas v2.0
-        </div>
-    </div>
-
-    <!-- Vista de Consultas (Hidden por defecto) -->
-    <div id="queries-view" class="fixed inset-0 bg-gray-900 z-50 overflow-y-auto hidden p-4">
-        <div class="max-w-md mx-auto space-y-6">
-            <div class="flex justify-between items-center">
-                <h2 class="text-2xl font-bold text-white">Consultas</h2>
-                <button id="show-main-btn" class="bg-gray-700 p-2 rounded-full text-white">✕</button>
-            </div>
-            
-            <div class="card-bg rounded-2xl p-5 border border-gray-700">
-                <p class="text-sm text-gray-400 mb-4">Compara referencias (Ej: "Ahorro" vs "Gastos")</p>
-                <div class="space-y-3">
+        <!-- VISTA: REGISTRO -->
+        <div id="view-register" class="space-y-6">
+            <!-- Balance Rápido -->
+            <div class="card-bg rounded-2xl shadow-xl p-5 border border-gray-700">
+                <div class="grid grid-cols-3 gap-2 text-center">
                     <div>
-                        <label class="text-xs text-custom-income block mb-1">Referencia Ingreso</label>
-                        <input type="text" id="income-reference" class="w-full rounded-lg p-3 input-style">
+                        <p class="text-[10px] text-gray-400 uppercase">Ingresos</p>
+                        <p id="total-ingresos" class="text-custom-income font-bold text-lg">$0</p>
+                    </div>
+                    <div class="border-l border-r border-gray-700">
+                        <p class="text-[10px] text-gray-400 uppercase">Gastos</p>
+                        <p id="total-gastos" class="text-custom-expense font-bold text-lg">$0</p>
                     </div>
                     <div>
-                        <label class="text-xs text-custom-expense block mb-1">Referencia Gasto</label>
-                        <input type="text" id="expense-reference" class="w-full rounded-lg p-3 input-style">
+                        <p class="text-[10px] text-gray-400 uppercase">Balance</p>
+                        <p id="diferencia" class="font-bold text-lg">$0</p>
                     </div>
-                </div>
-                <div class="mt-6 text-center p-4 bg-gray-800 rounded-xl">
-                    <span class="text-gray-400 text-sm">Balance</span>
-                    <p id="balance-result" class="text-2xl font-bold text-white mt-1">$0.00</p>
                 </div>
             </div>
 
-            <div id="results-table-container" class="hidden pb-10">
-                <h3 class="text-lg font-semibold text-gray-200 mb-3">Detalle</h3>
-                <div id="results-list" class="space-y-2"></div>
+            <!-- Formulario -->
+            <div class="card-bg rounded-2xl shadow-xl p-5 border border-gray-700">
+                <form id="transaction-form" class="space-y-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="date" id="fecha" required class="w-full rounded-lg p-3 input-style">
+                        <select id="concepto" required class="w-full rounded-lg p-3 input-style">
+                            <option value="Gasto">🔴 Gasto</option>
+                            <option value="Ingreso">🟢 Ingreso</option>
+                        </select>
+                    </div>
+                    
+                    <input type="number" id="cantidad" placeholder="0.00" step="0.01" required class="w-full rounded-lg p-3 input-style text-xl font-bold text-center">
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <input type="text" id="referencia" placeholder="Ref (Ej. Super)" required class="w-full rounded-lg p-3 input-style">
+                        <select id="tipoMovimiento" required class="w-full rounded-lg p-3 input-style">
+                            <option value="Efectivo">💵 Efectivo</option>
+                            <option value="Tarjeta">💳 Tarjeta</option>
+                            <option value="Transferencia">🏦 Transf.</option>
+                        </select>
+                    </div>
+                    
+                    <input type="text" id="descripcion" placeholder="Nota extra..." class="w-full rounded-lg p-3 input-style">
+
+                    <button type="submit" id="submit-btn" class="w-full bg-emerald-600 active:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg flex justify-center items-center gap-2 transition-all">
+                        <span>Guardar en Planilla</span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="space-y-3">
+                <div class="flex justify-between items-center px-2">
+                    <h2 class="text-sm font-semibold text-gray-400 uppercase">Últimos movimientos</h2>
+                    <button onclick="clearAll()" class="text-[10px] text-red-400 hover:text-red-300 uppercase font-bold">Limpiar Local</button>
+                </div>
+                <div id="transactions-list" class="space-y-2"></div>
             </div>
         </div>
-    </div>
+
+        <!-- VISTA: ESTADÍSTICAS -->
+        <div id="view-stats" class="hidden space-y-6 animate-fadeIn">
+            <!-- Filtros Avanzados -->
+            <div class="card-bg rounded-2xl shadow-xl p-5 border border-gray-700 space-y-4">
+                <div class="flex justify-between items-center border-b border-gray-700 pb-2">
+                    <h2 class="text-sm font-bold text-gray-300 uppercase tracking-tighter">Filtros de Análisis</h2>
+                    <span class="text-[10px] text-emerald-400 font-bold uppercase" id="stats-range-label">Personalizado</span>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[10px] text-gray-500 block mb-1">Desde</label>
+                        <input type="date" id="stats-desde" onchange="calculateStats()" class="w-full rounded-lg p-2 input-style text-sm">
+                    </div>
+                    <div>
+                        <label class="text-[10px] text-gray-500 block mb-1">Hasta</label>
+                        <input type="date" id="stats-hasta" onchange="calculateStats()" class="w-full rounded-lg p-2 input-style text-sm">
+                    </div>
+                </div>
+
+                <!-- FILTRO POR REFERENCIA (NUEVO) -->
+                <div>
+                    <label class="text-[10px] text-gray-500 block mb-1">Filtrar por Referencia</label>
+                    <select id="filter-ref" onchange="calculateStats()" class="w-full rounded-lg p-2 input-style text-sm">
+                        <option value="TODAS">🔍 Todas las referencias</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- RESUMEN DE BALANCE -->
+            <div id="stats-hero" class="space-y-4">
+                <!-- Tarjeta de Balance Neto -->
+                <div id="net-card" class="p-6 rounded-2xl border flex flex-col items-center justify-center space-y-2 transition-all duration-500 shadow-lg">
+                    <p class="text-xs uppercase tracking-widest font-bold opacity-70" id="net-label">Balance Neto</p>
+                    <p class="text-4xl font-black" id="net-amount">$0</p>
+                    <div id="net-indicator" class="text-[10px] px-3 py-1 rounded-full font-bold uppercase tracking-widest"></div>
+                </div>
+
+                <!-- Comparativa Visual Rápida -->
+                <div class="card-bg p-5 rounded-2xl border border-gray-700 space-y-4">
+                    <div class="flex justify-between text-[10px] font-black uppercase tracking-widest">
+                        <span class="text-custom-income">Ingresos</span>
+                        <span class="text-custom-expense">Gastos</span>
+                    </div>
+                    <!-- Barra de balance porcentual -->
+                    <div class="w-full h-3 bg-gray-800 rounded-full flex overflow-hidden border border-gray-900 shadow-inner">
+                        <div id="bar-inc" class="bg-cyan-500 h-full transition-all duration-1000 border-r border-gray-900"></div>
+                        <div id="bar-exp" class="bg-pink-500 h-full transition-all duration-1000"></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="text-left border-l-2 border-cyan-500 pl-2">
+                            <p class="text-lg font-black text-custom-income" id="hero-inc">$0</p>
+                            <p class="text-[9px] text-gray-500 uppercase font-bold">Total periodo</p>
+                        </div>
+                        <div class="text-right border-r-2 border-pink-500 pr-2">
+                            <p class="text-lg font-black text-custom-expense" id="hero-exp">$0</p>
+                            <p class="text-[9px] text-gray-500 uppercase font-bold">Total periodo</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COMPARATIVA POR REFERENCIA (Solo se muestra si el filtro es 'TODAS') -->
+            <div id="ref-comparative-section" class="space-y-6">
+                <div class="space-y-4">
+                    <h2 class="text-xs font-black text-gray-400 uppercase px-2 tracking-widest flex items-center gap-2">
+                        <span class="w-2 h-2 bg-cyan-500 rounded-full"></span> Top Ingresos
+                    </h2>
+                    <div id="stats-inc-ref" class="space-y-3 bg-gray-800/40 p-4 rounded-xl border border-gray-800"></div>
+                </div>
+
+                <div class="space-y-4">
+                    <h2 class="text-xs font-black text-gray-400 uppercase px-2 tracking-widest flex items-center gap-2">
+                        <span class="w-2 h-2 bg-pink-500 rounded-full"></span> Top Gastos
+                    </h2>
+                    <div id="stats-exp-ref" class="space-y-3 bg-gray-800/40 p-4 rounded-xl border border-gray-800"></div>
+                </div>
+            </div>
+
+            <!-- DETALLE DE MOVIMIENTOS -->
+            <div class="space-y-4">
+                <h2 class="text-xs font-black text-gray-500 uppercase px-2 tracking-widest">Cronología Detallada</h2>
+                <div id="stats-details-list" class="space-y-2"></div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Navegación Inferior -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-gray-800 border-t border-gray-700 px-6 py-3 z-50 shadow-2xl">
+        <div class="max-w-md mx-auto flex justify-around items-center">
+            <button onclick="switchTab('register')" id="tab-register" class="flex flex-col items-center gap-1 tab-active transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                <span class="text-[10px] font-bold">Registrar</span>
+            </button>
+            <button onclick="switchTab('stats')" id="tab-stats" class="flex flex-col items-center gap-1 text-gray-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                <span class="text-[10px] font-bold">Estadísticas</span>
+            </button>
+        </div>
+    </nav>
 
     <script>
-        // URL de tu Google Apps Script
-        const googleAppsScriptURL = "https://script.google.com/macros/s/AKfycbyxiOeiLahcOp54Uhnk2XitJF61jNOkIGx0YrjAwholiYt0ZB48S46PVz6wahr0TFVNBg/exec";
+        const googleAppsScriptURL = "https://script.google.com/macros/s/AKfycbxm-ykWsDdqHTzJW0OfjVAnROD-nTL0nhOyJc3xlelss8HzQuw0d2zIJKOw4XiUFDcQ9A/exec";
 
-        // Elementos DOM
-        const form = document.getElementById('transaction-form');
-        const transactionsList = document.getElementById('transactions-list');
-        const totalIngresosEl = document.getElementById('total-ingresos');
-        const totalGastosEl = document.getElementById('total-gastos');
-        const diferenciaEl = document.getElementById('diferencia');
-        const fechaInicioInput = document.getElementById('fecha-inicio');
-        const fechaFinalInput = document.getElementById('fecha-final');
-        const resumenMensualTable = document.getElementById('resumen-mensual');
-        const openSpreadsheetBtn = document.getElementById('open-spreadsheet-btn');
-        const resumenPeriodoTitulo = document.getElementById('resumen-periodo-titulo');
-        const resetDatesBtn = document.getElementById('reset-dates-btn');
-        
-        // Vistas
-        const mainView = document.getElementById('main-view');
-        const queriesView = document.getElementById('queries-view');
-        const showQueriesBtn = document.getElementById('show-queries-btn');
-        const showMainBtn = document.getElementById('show-main-btn');
-        const incomeRefInput = document.getElementById('income-reference');
-        const expenseRefInput = document.getElementById('expense-reference');
-        const balanceResultEl = document.getElementById('balance-result');
-        const resultsTableContainer = document.getElementById('results-table-container');
-        const resultsList = document.getElementById('results-list');
+        let transactions = JSON.parse(localStorage.getItem('finanzas_v2')) || [];
 
-        let transactions = [];
-        const meses = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+        function switchTab(tab) {
+            const reg = document.getElementById('view-register');
+            const sta = document.getElementById('view-stats');
+            const tReg = document.getElementById('tab-register');
+            const tSta = document.getElementById('tab-stats');
 
-        // Configurar fecha de hoy por defecto
-        document.getElementById('fecha').valueAsDate = new Date();
-
-        function loadTransactions() {
-            const stored = localStorage.getItem('Transacciones');
-            if (stored) transactions = JSON.parse(stored);
-        }
-
-        function saveTransactions() {
-            localStorage.setItem('Transacciones', JSON.stringify(transactions));
-        }
-
-        const formatCurrency = (amount) => {
-            return new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(amount);
-        }
-
-        function renderTransactions() {
-            transactionsList.innerHTML = '';
-            const sorted = [...transactions].sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
-            
-            sorted.slice(0, 15).forEach(t => {
-                const isIncome = t.concepto === 'Ingreso';
-                const colorClass = isIncome ? 'text-custom-income' : 'text-custom-expense';
-                const sign = isIncome ? '+' : '-';
-                const icon = t.tipoMovimiento === 'Efectivo' ? '💵' : t.tipoMovimiento === 'Tarjeta' ? '💳' : '🏦';
-
-                const div = document.createElement('div');
-                div.className = "card-bg p-4 rounded-xl border border-gray-700 flex justify-between items-center shadow-sm";
-                div.innerHTML = `
-                    <div class="flex flex-col overflow-hidden">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-lg">${icon}</span>
-                            <span class="font-bold text-gray-200 truncate">${t.referencia}</span>
-                        </div>
-                        <span class="text-xs text-gray-500 mt-1">${new Date(t.fecha).toLocaleDateString()} • ${t.descripcion || '-'}</span>
-                    </div>
-                    <div class="flex flex-col items-end pl-2 min-w-max">
-                        <span class="${colorClass} font-bold text-lg">${sign}${formatCurrency(t.cantidad)}</span>
-                        <button onclick="deleteTransaction(${t.id})" class="text-xs text-red-400 mt-1 py-1 px-2 hover:bg-red-900/30 rounded">Eliminar</button>
-                    </div>
-                `;
-                transactionsList.appendChild(div);
-            });
-        }
-
-        function deleteTransaction(id) {
-            if(confirm('¿Borrar esta transacción?')) {
-                // CORRECCIÓN IMPORTANTE: Borrar por ID único, no por índice
-                transactions = transactions.filter(t => t.id !== id);
-                saveTransactions();
+            if (tab === 'register') {
+                reg.classList.remove('hidden'); sta.classList.add('hidden');
+                tReg.classList.add('tab-active'); tReg.classList.remove('text-gray-500');
+                tSta.classList.add('text-gray-500'); tSta.classList.remove('tab-active');
                 updateUI();
+            } else {
+                reg.classList.add('hidden'); sta.classList.remove('hidden');
+                tSta.classList.add('tab-active'); tSta.classList.remove('text-gray-500');
+                tReg.classList.add('text-gray-500'); tReg.classList.remove('tab-active');
+                populateRefFilter();
+                calculateStats();
             }
+        }
+
+        // Poblar el filtro de referencias basándose en los datos existentes
+        function populateRefFilter() {
+            const filterSelect = document.getElementById('filter-ref');
+            const currentVal = filterSelect.value;
+            const refs = [...new Set(transactions.map(t => t.referencia))].sort();
+            
+            filterSelect.innerHTML = '<option value="TODAS">🔍 Todas las referencias</option>';
+            refs.forEach(ref => {
+                const opt = document.createElement('option');
+                opt.value = ref;
+                opt.textContent = ref;
+                filterSelect.appendChild(opt);
+            });
+            filterSelect.value = currentVal; // Mantener selección si existe
         }
 
         function updateUI() {
-            renderTransactions();
-            updateSummary();
-            renderMonthlySummary();
-        }
-
-        function updateSummary() {
-            let start = fechaInicioInput.value;
-            let end = fechaFinalInput.value;
-            let label = "Mes Actual";
-
-            if (!start && !end) {
-                const date = new Date();
-                const firstDay = new Date(date.getFullYear(), date.getMonth(), 1);
-                const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0);
-                start = firstDay.toISOString().split('T')[0];
-                end = lastDay.toISOString().split('T')[0];
-                label = `${meses[date.getMonth()]} ${date.getFullYear()}`;
-            }
-
-            resumenPeriodoTitulo.textContent = label;
-
-            const filtered = transactions.filter(t => {
-                // Arreglo zona horaria simple comparando strings YYYY-MM-DD
-                return (!start || t.fecha >= start) && (!end || t.fecha <= end);
-            });
-
-            const ingresos = filtered.filter(t => t.concepto === 'Ingreso').reduce((acc, t) => acc + t.cantidad, 0);
-            const gastos = filtered.filter(t => t.concepto === 'Gasto').reduce((acc, t) => acc + t.cantidad, 0);
-            const diff = ingresos - gastos;
-
-            totalIngresosEl.textContent = formatCurrency(ingresos);
-            totalGastosEl.textContent = formatCurrency(gastos);
-            diferenciaEl.textContent = formatCurrency(diff);
-            diferenciaEl.className = `font-bold text-lg sm:text-xl ${diff >= 0 ? 'text-custom-income' : 'text-custom-expense'}`;
-        }
-
-        function renderMonthlySummary() {
-            resumenMensualTable.innerHTML = '';
-            const data = {};
-
-            transactions.forEach(t => {
-                const k = t.fecha.substring(0, 7); // YYYY-MM
-                if (!data[k]) data[k] = { in: 0, out: 0 };
-                if (t.concepto === 'Ingreso') data[k].in += t.cantidad;
-                else data[k].out += t.cantidad;
-            });
-
-            Object.keys(data).sort().reverse().forEach(key => {
-                const [y, m] = key.split('-');
-                const row = document.createElement('tr');
-                row.className = "border-b border-gray-800 hover:bg-gray-800 transition-colors";
-                row.innerHTML = `
-                    <td class="py-3 pl-2 text-gray-300 font-medium">${meses[parseInt(m)-1]} ${y}</td>
-                    <td class="py-3 text-right text-custom-income">${formatCurrency(data[key].in)}</td>
-                    <td class="py-3 pr-2 text-right text-custom-expense">${formatCurrency(data[key].out)}</td>
+            const list = document.getElementById('transactions-list');
+            list.innerHTML = '';
+            const sorted = [...transactions].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+            
+            sorted.slice(0, 15).forEach((t) => {
+                const originalIndex = transactions.indexOf(t);
+                const isInc = t.concepto === 'Ingreso';
+                const div = document.createElement('div');
+                div.className = "card-bg p-3 rounded-xl border border-gray-800 flex justify-between items-center animate-fadeIn shadow-sm";
+                div.innerHTML = `
+                    <div class="text-sm">
+                        <p class="font-bold text-gray-100">${t.referencia}</p>
+                        <p class="text-[10px] text-gray-500">${t.fecha} • ${t.tipoMovimiento}</p>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <p class="${isInc ? 'text-custom-income':'text-custom-expense'} font-bold">
+                            ${isInc ? '+':'-'}$${parseFloat(t.cantidad).toLocaleString()}
+                        </p>
+                        <button onclick="deleteItem(${originalIndex})" class="text-[10px] text-gray-600 hover:text-red-400 mt-1">Borrar</button>
+                    </div>
                 `;
-                resumenMensualTable.appendChild(row);
+                list.appendChild(div);
             });
+
+            const income = transactions.filter(t => t.concepto === 'Ingreso').reduce((a, b) => a + parseFloat(b.cantidad), 0);
+            const expense = transactions.filter(t => t.concepto === 'Gasto').reduce((a, b) => a + parseFloat(b.cantidad), 0);
+            
+            document.getElementById('total-ingresos').textContent = `$${income.toLocaleString()}`;
+            document.getElementById('total-gastos').textContent = `$${expense.toLocaleString()}`;
+            document.getElementById('diferencia').textContent = `$${(income - expense).toLocaleString()}`;
         }
 
-        // Envío a Apps Script
-        async function saveToCloud(t) {
-            if (googleAppsScriptURL.includes("AQUI_DEBE_IR")) return;
+        function renderBars(containerId, dataMap, colorClass) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = '';
+            const sortedEntries = Object.entries(dataMap).sort((a,b) => b[1] - a[1]);
             
-            const btn = form.querySelector('button[type="submit"]');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = `<span class="animate-spin">↻</span> Guardando...`;
-            
-            try {
-                const fd = new FormData();
-                // Mapear a los nombres que espera tu script
-                fd.append('FECHA', t.fecha);
-                fd.append('CONCEPTO', t.concepto);
-                fd.append('REFERENCIA', t.referencia);
-                fd.append('CANTIDAD', t.cantidad);
-                fd.append('DESCRIPCION', t.descripcion);
-                fd.append('TIPO_MOVIMIENTO', t.tipoMovimiento);
-                
-                await fetch(googleAppsScriptURL, { method: 'POST', body: fd, mode: 'no-cors' }); // no-cors para evitar errores simples de red en fetch simple
-                
-                // Nota: Con no-cors no podemos saber si falló realmente, pero asumimos éxito si no hay error de red
-                showToast("Guardado en la nube ✅");
-            } catch (e) {
-                showToast("Guardado local (Error nube) ⚠️");
-                console.error(e);
-            } finally {
-                btn.innerHTML = originalText;
-            }
-        }
-
-        function showToast(msg) {
-            const div = document.createElement('div');
-            div.className = "fixed bottom-5 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-full shadow-lg border border-gray-600 text-sm animate-bounce";
-            div.textContent = msg;
-            document.body.appendChild(div);
-            setTimeout(() => div.remove(), 3000);
-        }
-
-        // Listeners
-        form.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const rawDate = document.getElementById('fecha').value;
-            const t = {
-                id: Date.now(), // ID ÚNICO
-                fecha: rawDate,
-                concepto: document.getElementById('concepto').value,
-                referencia: document.getElementById('referencia').value,
-                tipoMovimiento: document.getElementById('tipoMovimiento').value,
-                descripcion: document.getElementById('descripcion').value,
-                cantidad: parseFloat(document.getElementById('cantidad').value)
-            };
-            
-            transactions.push(t);
-            saveTransactions();
-            updateUI();
-            form.reset();
-            document.getElementById('fecha').value = rawDate; // Mantener fecha
-            
-            saveToCloud(t);
-        });
-
-        openSpreadsheetBtn.onclick = () => window.open(googleAppsScriptURL, '_blank');
-        
-        // Consultas
-        showQueriesBtn.onclick = () => { mainView.classList.add('hidden'); queriesView.classList.remove('hidden'); };
-        showMainBtn.onclick = () => { queriesView.classList.add('hidden'); mainView.classList.remove('hidden'); };
-        
-        function updateQueries() {
-            const incRef = incomeRefInput.value.trim().toUpperCase();
-            const expRef = expenseRefInput.value.trim().toUpperCase();
-            
-            if(!incRef && !expRef) {
-                balanceResultEl.textContent = "$0.00";
-                resultsTableContainer.classList.add('hidden');
+            if (sortedEntries.length === 0) {
+                container.innerHTML = '<p class="text-center text-[10px] text-gray-600 py-2">Sin datos registrados</p>';
                 return;
             }
 
-            const match = transactions.filter(t => {
-                if(t.concepto === 'Ingreso' && incRef && t.referencia.toUpperCase().includes(incRef)) return true;
-                if(t.concepto === 'Gasto' && expRef && t.referencia.toUpperCase().includes(expRef)) return true;
-                return false;
+            const maxVal = sortedEntries[0][1];
+            sortedEntries.forEach(([ref, val]) => {
+                const perc = (val / maxVal) * 100;
+                const row = document.createElement('div');
+                row.className = "space-y-1 mb-2";
+                row.innerHTML = `
+                    <div class="flex justify-between text-[11px] px-1">
+                        <span class="text-gray-300 font-semibold">${ref}</span>
+                        <span class="text-gray-400 font-bold">$${val.toLocaleString()}</span>
+                    </div>
+                    <div class="w-full bg-gray-900/50 rounded-full h-1.5 overflow-hidden shadow-inner">
+                        <div class="${colorClass} h-full rounded-full transition-all duration-1000" style="width: ${perc}%"></div>
+                    </div>
+                `;
+                container.appendChild(row);
             });
+        }
 
-            const sumIn = match.filter(t => t.concepto === 'Ingreso').reduce((a,b)=>a+b.cantidad,0);
-            const sumOut = match.filter(t => t.concepto === 'Gasto').reduce((a,b)=>a+b.cantidad,0);
-            const bal = sumIn - sumOut;
-
-            balanceResultEl.textContent = formatCurrency(bal);
-            balanceResultEl.className = `text-2xl font-bold mt-1 ${bal >= 0 ? 'text-custom-income' : 'text-custom-expense'}`;
+        function calculateStats() {
+            const desde = document.getElementById('stats-desde').value;
+            const hasta = document.getElementById('stats-hasta').value;
+            const filterRef = document.getElementById('filter-ref').value;
             
-            resultsList.innerHTML = '';
-            if(match.length > 0) {
-                resultsTableContainer.classList.remove('hidden');
-                match.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha)).forEach(t => {
-                    const div = document.createElement('div');
-                    div.className = "flex justify-between text-sm p-2 bg-gray-800 rounded border border-gray-700";
-                    div.innerHTML = `<span>${t.fecha} ${t.referencia}</span><span class="${t.concepto === 'Ingreso'?'text-custom-income':'text-custom-expense'}">${formatCurrency(t.cantidad)}</span>`;
-                    resultsList.appendChild(div);
+            let filtered = transactions;
+            
+            // Filtro por fecha
+            if (desde) filtered = filtered.filter(t => t.fecha >= desde);
+            if (hasta) filtered = filtered.filter(t => t.fecha <= hasta);
+            
+            // Filtro por referencia (NUEVO)
+            if (filterRef !== "TODAS") {
+                filtered = filtered.filter(t => t.referencia === filterRef);
+                document.getElementById('ref-comparative-section').classList.add('hidden');
+            } else {
+                document.getElementById('ref-comparative-section').classList.remove('hidden');
+            }
+
+            const incTotal = filtered.filter(t => t.concepto === 'Ingreso').reduce((a, b) => a + parseFloat(b.cantidad), 0);
+            const expTotal = filtered.filter(t => t.concepto === 'Gasto').reduce((a, b) => a + parseFloat(b.cantidad), 0);
+            const neto = incTotal - expTotal;
+
+            // UI Hero Balance
+            const netCard = document.getElementById('net-card');
+            const netAmount = document.getElementById('net-amount');
+            const netIndicator = document.getElementById('net-indicator');
+            
+            netAmount.textContent = `$${neto.toLocaleString()}`;
+            
+            if (neto >= 0) {
+                netCard.className = "p-6 rounded-2xl border border-emerald-500/50 bg-emerald-500/10 flex flex-col items-center justify-center space-y-2 shadow-[0_0_20px_rgba(16,185,129,0.1)]";
+                netAmount.className = "text-4xl font-black text-emerald-400";
+                netIndicator.textContent = "Balance Positivo";
+                netIndicator.className = "text-[9px] px-3 py-1 rounded-full font-black uppercase bg-emerald-500 text-white shadow-lg";
+            } else {
+                netCard.className = "p-6 rounded-2xl border border-pink-500/50 bg-pink-500/10 flex flex-col items-center justify-center space-y-2 shadow-[0_0_20px_rgba(244,114,182,0.1)]";
+                netAmount.className = "text-4xl font-black text-pink-400";
+                netIndicator.textContent = "Balance Negativo";
+                netIndicator.className = "text-[9px] px-3 py-1 rounded-full font-black uppercase bg-pink-500 text-white shadow-lg";
+            }
+
+            // Barra de flujo
+            const totalFlujo = incTotal + expTotal;
+            const percInc = totalFlujo > 0 ? (incTotal / totalFlujo) * 100 : 50;
+            const percExp = totalFlujo > 0 ? (expTotal / totalFlujo) * 100 : 50;
+            
+            document.getElementById('bar-inc').style.width = `${percInc}%`;
+            document.getElementById('bar-exp').style.width = `${percExp}%`;
+            document.getElementById('hero-inc').textContent = `$${incTotal.toLocaleString()}`;
+            document.getElementById('hero-exp').textContent = `$${expTotal.toLocaleString()}`;
+
+            // Mapas de Referencia (Solo si vemos 'TODAS')
+            if (filterRef === "TODAS") {
+                const incMap = {}; const expMap = {};
+                filtered.forEach(t => {
+                    const val = parseFloat(t.cantidad);
+                    if (t.concepto === 'Ingreso') incMap[t.referencia] = (incMap[t.referencia] || 0) + val;
+                    else expMap[t.referencia] = (expMap[t.referencia] || 0) + val;
+                });
+                renderBars('stats-inc-ref', incMap, 'bg-cyan-500');
+                renderBars('stats-exp-ref', expMap, 'bg-pink-500');
+            }
+
+            // Cronología detallada
+            const detailList = document.getElementById('stats-details-list');
+            detailList.innerHTML = '';
+            
+            if (filtered.length === 0) {
+                detailList.innerHTML = '<p class="text-center text-xs text-gray-600 py-10">No hay movimientos que coincidan con los filtros.</p>';
+            } else {
+                [...filtered].sort((a,b) => new Date(b.fecha) - new Date(a.fecha)).forEach(t => {
+                    const isInc = t.concepto === 'Ingreso';
+                    const card = document.createElement('div');
+                    card.className = "bg-gray-800/60 p-3 rounded-lg border-l-4 " + (isInc ? 'border-cyan-500' : 'border-pink-500') + " shadow-sm";
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start">
+                            <div class="text-xs">
+                                <div class="flex items-center gap-2">
+                                    <span class="font-bold text-gray-200">${t.referencia}</span>
+                                    <span class="bg-gray-900 px-1.5 py-0.5 rounded text-[8px] text-gray-500 uppercase font-black">${t.tipoMovimiento}</span>
+                                </div>
+                                <p class="text-gray-500 mt-1">${t.fecha} • ${t.descripcion || 'Sin descripción'}</p>
+                            </div>
+                            <span class="font-bold ${isInc ? 'text-custom-income' : 'text-custom-expense'}">
+                                ${isInc ? '+' : '-'}$${parseFloat(t.cantidad).toLocaleString()}
+                            </span>
+                        </div>
+                    `;
+                    detailList.appendChild(card);
                 });
             }
         }
 
-        incomeRefInput.oninput = updateQueries;
-        expenseRefInput.oninput = updateQueries;
-
-        fechaInicioInput.onchange = updateSummary;
-        fechaFinalInput.onchange = updateSummary;
-        resetDatesBtn.onclick = () => { fechaInicioInput.value = ''; fechaFinalInput.value = ''; updateSummary(); };
-
-        // Init
-        window.onload = () => {
-            loadTransactions();
-            updateUI();
-            
-            // Registrar Service Worker
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('./service-worker.js')
-                    .then(() => console.log('SW Listo'))
-                    .catch(err => console.log('SW Error', err));
+        window.deleteItem = (index) => {
+            if(confirm("¿Eliminar del historial local?")) {
+                transactions.splice(index, 1);
+                localStorage.setItem('finanzas_v2', JSON.stringify(transactions));
+                updateUI();
             }
-            
-            // Detectar conexión
-            window.addEventListener('online', () => document.getElementById('offline-indicator').classList.add('hidden'));
-            window.addEventListener('offline', () => document.getElementById('offline-indicator').classList.remove('hidden'));
         };
+
+        window.clearAll = () => {
+            if(confirm("¿Borrar todo el historial local?")) {
+                transactions = [];
+                localStorage.setItem('finanzas_v2', JSON.stringify(transactions));
+                updateUI();
+            }
+        };
+
+        document.getElementById('transaction-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('submit-btn');
+            const data = {
+                fecha: document.getElementById('fecha').value,
+                concepto: document.getElementById('concepto').value,
+                referencia: document.getElementById('referencia').value,
+                tipoMovimiento: document.getElementById('tipoMovimiento').value,
+                descripcion: document.getElementById('descripcion').value,
+                cantidad: document.getElementById('cantidad').value
+            };
+
+            transactions.push(data);
+            localStorage.setItem('finanzas_v2', JSON.stringify(transactions));
+            updateUI();
+
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> Sincronizando...';
+
+            try {
+                const params = new URLSearchParams();
+                for(let k in data) params.append(k.toUpperCase(), data[k]);
+                await fetch(googleAppsScriptURL, { method: 'POST', mode: 'no-cors', body: params });
+                showToast("✅ ¡Guardado en Sheets!");
+                e.target.reset();
+                document.getElementById('fecha').valueAsDate = new Date();
+            } catch (err) {
+                showToast("⚠️ Error de red, guardado en local");
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<span>Guardar en Planilla</span>';
+            }
+        });
+
+        function showToast(m) {
+            const t = document.createElement('div');
+            t.className = "fixed bottom-24 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-2xl text-[10px] font-bold z-50 border border-gray-700 animate-bounce";
+            t.textContent = m;
+            document.body.appendChild(t);
+            setTimeout(() => t.remove(), 3000);
+        }
+
+        // Inicio
+        document.getElementById('fecha').valueAsDate = new Date();
+        const now = new Date();
+        document.getElementById('stats-desde').value = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+        document.getElementById('stats-hasta').value = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        updateUI();
     </script>
 </body>
 </html>
