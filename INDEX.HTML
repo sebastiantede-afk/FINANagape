@@ -74,7 +74,7 @@
         <div class="card-bg p-6 rounded-xl shadow-lg">
             <h2 class="text-xl font-bold mb-4" id="resumen-titulo">Resumen del Periodo</h2>
             
-            <!-- Buscador por Referencia (Nuevo) -->
+            <!-- Buscador por Referencia -->
             <div class="mb-4">
                 <input type="text" id="filtro-referencia" placeholder="🔍 Filtrar por referencia (Ej: Sueldo, Super...)" class="w-full p-2 rounded input-dark text-sm">
             </div>
@@ -202,8 +202,6 @@
 
         function renderMainTable() {
             txTable.innerHTML = '';
-            // Aplicar el filtro de referencia también a la tabla principal si se desea, 
-            // pero por defecto mostramos los últimos 20 sin filtrar para no perder el historial de vista
             const copy = [...transactions].sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
             copy.slice(0, 20).forEach((t, i) => {
                 const row = document.createElement('tr');
@@ -252,7 +250,6 @@
             
             let filtered = transactions;
             
-            // Filtro por Fechas
             if (fIn && fFi) {
                 filtered = filtered.filter(t => t.fecha >= fIn && t.fecha <= fFi);
                 document.getElementById('resumen-titulo').innerText = "Resumen Filtrado";
@@ -260,7 +257,6 @@
                 document.getElementById('resumen-titulo').innerText = "Resumen Histórico";
             }
 
-            // Filtro por Referencia (Nuevo)
             if (refFiltro) {
                 filtered = filtered.filter(t => t.referencia.toLowerCase().includes(refFiltro));
             }
@@ -299,7 +295,6 @@
             txForm.reset();
             document.getElementById('fecha').valueAsDate = new Date();
 
-            // Enviar a Google
             try {
                 const params = new URLSearchParams();
                 for(let key in tx) params.append(key.toUpperCase(), tx[key]);
@@ -307,7 +302,6 @@
             } catch(e) {}
         };
 
-        // Navegación y Otros
         document.getElementById('show-queries-btn').onclick = () => {
             document.getElementById('main-view').classList.add('hidden');
             document.getElementById('queries-view').classList.remove('hidden');
@@ -323,12 +317,10 @@
             updateSummary();
         };
 
-        // Listeners para filtros
         document.getElementById('fecha-inicio').onchange = updateSummary;
         document.getElementById('fecha-final').onchange = updateSummary;
         refFilterInput.oninput = updateSummary;
 
-        // Buscador Especial (Vista Consultas)
         function runQuery() {
             const inc = document.getElementById('income-reference').value.toLowerCase();
             const exp = document.getElementById('expense-reference').value.toLowerCase();
