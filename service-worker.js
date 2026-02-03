@@ -1,45 +1,44 @@
-const CACHE_NAME = 'finanzas-v2';
+const CACHE_NAME = 'finanzas-v3'; // Incrementamos la versión para forzar actualización
+
 const urlsToCache = [
-  './',
-  './index.html',
-  './manifest.json',
+  '/',
+  '/index.html',
+  '/manifest.json',
   'https://cdn.tailwindcss.com'
 ];
 
+// Instalación: Forzamos al SW a tomar el control inmediatamente
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => {
-        console.log('Abriendo cache');
         return cache.addAll(urlsToCache);
       })
   );
 });
 
-self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        return fetch(event.request);
-      })
-  );
-});
-
+// Activación: Limpia caches antiguos para evitar el error 404 de archivos viejos
 self.addEventListener('activate', event => {
-  const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          if (cacheWhitelist.indexOf(cacheName) === -1) {
+          if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
       );
-    })
+    }).then(() => self.clients.claim())
+  );
+});
+
+// Estrategia: Intentar Red, si falla o no hay internet, usar Cache
+self.addEventListener('fetch', event => {
+  event.respondWith(
+    fetch(event.request)
+      .catch(() => {
+        return caches.match(event.request) || caches.match('/');
+      })
   );
 });
